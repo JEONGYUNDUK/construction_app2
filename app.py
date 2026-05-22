@@ -9,11 +9,13 @@ import streamlit as st
 try:
     from app_logic import (
         assign_display_numbers,
+        build_pdf_download_name,
         build_period_text,
-        build_record_widget_keys,
+        build_construction_status_rows,
         choose_store_data_source,
         find_store_by_code,
         find_store_by_name_and_code,
+        generate_construction_status_pdf,
         get_agency_options,
         get_marketing_display_label,
         get_marketing_options,
@@ -130,18 +132,6 @@ except Exception:
         }
 
 
-    def build_record_widget_keys(target_id: str, mobile: bool = False) -> dict[str, str]:
-        suffix = "_m" if mobile else ""
-        return {
-            "detail": f"detail{suffix}_{target_id}",
-            "contractor": f"contractor{suffix}_{target_id}",
-            "period": f"period{suffix}_{target_id}",
-            "status": f"status{suffix}_{target_id}",
-            "update": f"update{suffix}_{target_id}",
-            "delete": f"delete{suffix}_{target_id}",
-        }
-
-
     def make_target_store_record(store: pd.Series) -> dict[str, str]:
         return {
             "대상ID": uuid4().hex,
@@ -188,6 +178,10 @@ except Exception:
         return merged
 
 
+    def build_construction_status_rows(targets: pd.DataFrame, records: pd.DataFrame) -> pd.DataFrame:
+        return assign_display_numbers(merge_targets_with_records(targets, records))
+
+
     def assign_display_numbers(rows: pd.DataFrame) -> pd.DataFrame:
         result = rows.copy().reset_index(drop=True)
         if result.empty:
@@ -220,6 +214,13 @@ except Exception:
         return result.drop(columns=["_original_order", "_base_no", "_dup_seq"])
 
 
+    def generate_construction_status_pdf(rows: pd.DataFrame) -> bytes:
+        raise ImportError("reportlab is required to generate PDFs.")
+
+    def build_pdf_download_name() -> str:
+        return "유통망 공사현황_대구마케팅담당.pdf"
+
+
 st.set_page_config(
     page_title="유통망 공사정보 공유",
     page_icon="🏗️",
@@ -249,220 +250,81 @@ RECORD_COLUMNS = [
     "완료처리일",
 ]
 CONTRACTOR_OPTIONS = ["", "티엔에스", "디자인피아", "동아광고", "DID", "가구"]
-DESKTOP_RECORD_COLUMN_WIDTHS = [0.5, 1.05, 0.95, 1.55, 2.0, 1.05, 1.45, 0.95, 0.9, 0.9]
-RECORD_HEADER_LABELS = [
-    "NO",
-    "매장명",
-    "매장코드",
-    "주소",
-    "공사내용",
-    "시공업체",
-    "공사기간",
-    "공사완료여부",
-    "업데이트",
-    "삭제",
-]
 
 st.markdown(
     """
     <style>
-    :root {
-        --surface-bg: #f8fafc;
-        --card-bg: #ffffff;
-        --card-border: #e2e8f0;
-        --text-strong: #0f172a;
-        --text-muted: #64748b;
-        --accent-soft: #eff6ff;
-        --accent-border: #bfdbfe;
-        --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.05);
-    }
-
-    .stApp {
-        background:
-            radial-gradient(circle at top left, rgba(147, 197, 253, 0.2), transparent 24%),
-            linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%);
-    }
-
     .main .block-container {
-        padding-top: 1.2rem;
-        padding-bottom: 2.4rem;
-        max-width: 1280px;
+        padding-top: 1.4rem;
+        padding-bottom: 2rem;
+        max-width: 1180px;
     }
 
     .hero-card {
-        padding: 24px 28px;
-        border-radius: 24px;
-        background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 60%, #1e293b 100%);
+        padding: 24px 26px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
         color: white;
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
-        margin-bottom: 18px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 16px 35px rgba(15, 23, 42, 0.18);
+        margin-bottom: 20px;
     }
 
     .hero-title {
-        font-size: 32px;
+        font-size: 30px;
         font-weight: 800;
         margin-bottom: 6px;
         letter-spacing: -0.6px;
-        background: linear-gradient(to right, #ffffff, #93c5fd);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    .hero-subtitle {
-        margin: 0;
-        font-size: 14px;
-        line-height: 1.6;
-        color: rgba(255, 255, 255, 0.82);
     }
 
     .section-card {
-        padding: 20px 22px;
-        border-radius: 20px;
-        border: 1px solid var(--card-border);
-        background: rgba(255, 255, 255, 0.92);
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(8px);
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
         margin-bottom: 18px;
     }
 
     .info-card {
         padding: 20px;
         border-radius: 18px;
-        border: 1px solid var(--card-border);
-        background-color: var(--card-bg);
-        box-shadow: var(--shadow-soft);
+        border: 1px solid #e5e7eb;
+        background-color: #ffffff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
         margin-bottom: 14px;
     }
 
-    .summary-card {
-        min-height: 106px;
-    }
-
     .metric-label {
-        color: var(--text-muted);
+        color: #64748b;
         font-size: 13px;
         font-weight: 700;
         margin-bottom: 4px;
     }
 
     .metric-value {
-        color: var(--text-strong);
-        font-size: 22px;
+        color: #0f172a;
+        font-size: 17px;
         font-weight: 800;
         word-break: keep-all;
-    }
-
-    .metric-caption {
-        margin-top: 8px;
-        color: var(--text-muted);
-        font-size: 13px;
-    }
-
-    .section-intro {
-        margin: -0.2rem 0 0.9rem 0;
-        color: var(--text-muted);
-        font-size: 14px;
-        line-height: 1.6;
-    }
-
-    .selection-hint {
-        margin-bottom: 12px;
-        color: var(--text-muted);
-        font-size: 13px;
-    }
-
-    .desktop-only {
-        display: block;
-    }
-
-    .mobile-only {
-        display: none;
-    }
-
-    .table-header-cell {
-        color: var(--text-muted);
-        font-size: 12px;
-        font-weight: 800;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
-    }
-
-    .mobile-card {
-        padding: 18px;
-        border-radius: 18px;
-        border: 1px solid var(--card-border);
-        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-        box-shadow: var(--shadow-soft);
-        margin-bottom: 12px;
-    }
-
-    .mobile-card-header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 10px;
-    }
-
-    .mobile-card-title {
-        color: var(--text-strong);
-        font-size: 18px;
-        font-weight: 800;
-        line-height: 1.35;
-    }
-
-    .mobile-card-no {
-        flex-shrink: 0;
-        border-radius: 999px;
-        background: var(--accent-soft);
-        color: #1d4ed8;
-        border: 1px solid var(--accent-border);
-        padding: 4px 10px;
-        font-size: 12px;
-        font-weight: 800;
-    }
-
-    .mobile-card-meta {
-        color: #334155;
-        font-size: 13px;
-        line-height: 1.6;
-        word-break: keep-all;
-    }
-
-    .mobile-field-label {
-        margin: 12px 0 6px;
-        color: var(--text-muted);
-        font-size: 12px;
-        font-weight: 800;
-        letter-spacing: 0.02em;
-    }
-
-    .record-divider {
-        margin: 20px 0 26px;
-        border-bottom: 1px dashed #cbd5e1;
     }
 
     .stButton > button {
         border-radius: 12px;
-        min-height: 42px;
+        height: 42px;
         font-weight: 800;
         display: flex;
         align-items: center;
         justify-content: center;
         padding: 0 16px;
-        background: var(--accent-soft);
-        color: #2563eb;
-        border: 1px solid var(--accent-border);
-        transition: all 0.2s ease;
+        background: #bfdbfe;
+        color: #1d4ed8;
+        border: 1px solid #93c5fd;
     }
 
     .stButton > button:hover {
         background: #dbeafe;
         border-color: #93c5fd;
         color: #1e40af;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
     }
 
     button[kind="primary"] {
@@ -478,15 +340,10 @@ st.markdown(
         border-color: #ef9a9a !important;
     }
 
-    div[key="mobile_select_container"],
-    div[key="mobile_container"] {
-        display: none;
-    }
-
-    @media (max-width: 1024px) {
+    @media (max-width: 768px) {
         .main .block-container {
-            padding-left: 0.8rem;
-            padding-right: 0.8rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
         }
 
         .hero-card {
@@ -498,82 +355,8 @@ st.markdown(
             font-size: 24px;
         }
 
-        .hero-subtitle {
-            font-size: 13px;
-        }
-
-        .section-card,
-        .info-card,
-        .mobile-card {
-            border-radius: 16px;
-        }
-
         .metric-value {
-            font-size: 18px;
-        }
-
-        .desktop-only {
-            display: none !important;
-        }
-
-        .mobile-only {
-            display: block !important;
-        }
-
-        div[key="desktop_select_container"],
-        div[key="desktop_container"] {
-            display: none !important;
-        }
-
-        div[key="mobile_select_container"],
-        div[key="mobile_container"] {
-            display: block !important;
-        }
-
-        div[data-testid="stRadio"] > div {
-            gap: 0.4rem;
-            flex-wrap: wrap;
-        }
-
-        div[data-testid="stDateInput"] input,
-        div[data-testid="stTextInput"] input,
-        div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
-            font-size: 16px;
-        }
-
-        .stButton > button {
-            width: 100%;
-        }
-
-        .record-divider {
-            margin: 18px 0 24px;
-        }
-    }
-
-    @media (max-width: 1024px) and (orientation: landscape) {
-        .main .block-container {
-            max-width: 960px;
-        }
-
-        .mobile-card-header {
-            align-items: center;
-        }
-    }
-
-    @media (min-width: 1025px) {
-        .desktop-only {
-            display: block !important;
-        }
-
-        .mobile-only,
-        div[key="mobile_select_container"],
-        div[key="mobile_container"] {
-            display: none !important;
-        }
-
-        div[key="desktop_select_container"],
-        div[key="desktop_container"] {
-            display: block !important;
+            font-size: 15px;
         }
     }
     </style>
@@ -682,8 +465,6 @@ def validate_period_dates(start_date: date, end_date: date) -> tuple[bool, str]:
 def make_store_card(store: pd.Series) -> None:
     safe_store = {key: escape(str(value)) for key, value in store.items()}
 
-    # ------------------ 데스크톱용 매장 정보 카드 ------------------
-    st.markdown('<div class="desktop-only">', unsafe_allow_html=True)
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1.4, 1.1, 2.2])
 
@@ -700,20 +481,6 @@ def make_store_card(store: pd.Series) -> None:
         st.markdown(f'<div class="metric-value">{safe_store["주소"]}</div>', unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # ------------------ 모바일용 매장 정보 카드 ------------------
-    st.markdown('<div class="mobile-only">', unsafe_allow_html=True)
-    st.markdown(f"""
-    <div class="mobile-card">
-        <div class="mobile-card-header">
-            <div class="mobile-card-title">{safe_store["매장명"]}</div>
-            <div class="mobile-card-no">{safe_store["매장코드"]}</div>
-        </div>
-        <div class="mobile-card-meta"><b>주소:</b> {safe_store["주소"]}</div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 stores = load_store_data()
@@ -726,39 +493,17 @@ st.markdown(
     """
     <div class="hero-card">
         <div class="hero-title">유통망 공사정보 공유</div>
-        <p class="hero-subtitle">웹에서는 표형 편집 화면으로, 모바일에서는 카드형 입력 화면으로 자동 전환됩니다.</p>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
 summary_col1, summary_col2 = st.columns(2)
-with summary_col1:
-    st.markdown(
-        f"""
-        <div class="info-card summary-card">
-            <div class="metric-label">등록 대상 매장</div>
-            <div class="metric-value">{len(target_stores):,}건</div>
-            <div class="metric-caption">1단계에서 선택된 매장을 누적 관리합니다.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 with summary_col2:
-    st.markdown(
-        f"""
-        <div class="info-card summary-card">
-            <div class="metric-label">공사정보 등록 현황</div>
-            <div class="metric-value">{len(records):,}건</div>
-            <div class="metric-caption">2단계에서 공사내용과 기간, 완료 여부를 관리합니다.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.caption(f"2단계 등록 공사정보: {len(records):,}건")
 
 
 st.subheader("1. 대상 매장 등록")
-st.caption("웹에서는 3열 선택 구조로, 모바일에서는 세로 스택 구조로 자동 최적화됩니다.")
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
 select_method = st.radio(
@@ -785,87 +530,46 @@ if select_method == "매장코드 직접입력":
         if selected_store is None:
             st.warning("입력한 매장코드와 일치하는 매장이 없습니다.")
 else:
-    # ------------------ 데스크톱 뷰 ------------------
-    with st.container(key="desktop_select_container"):
-        st.markdown('<div class="selection-hint">마케팅팀, 대리점, 매장 순서대로 빠르게 선택할 수 있습니다.</div>', unsafe_allow_html=True)
-        select_col1, select_col2, select_col3 = st.columns(3)
+    select_col1, select_col2, select_col3 = st.columns(3)
 
-        with select_col1:
-            marketing_options = get_marketing_options(stores)
-            selected_marketing = st.selectbox(
-                "마케팅팀",
-                marketing_options,
-                index=None,
-                placeholder="마케팅팀을 선택하세요",
-                format_func=get_marketing_display_label,
-                key=selection_keys["selected_marketing"],
-            )
-
-        selected_agency = None
-        selected_store_label = None
-
-        with select_col2:
-            agency_options = get_agency_options(stores, selected_marketing) if selected_marketing else []
-            selected_agency = st.selectbox(
-                "대리점명",
-                agency_options,
-                index=None,
-                placeholder="대리점을 선택하세요",
-                disabled=not selected_marketing,
-                key=selection_keys["selected_agency"],
-            )
-
-        with select_col3:
-            store_options = get_store_options(stores, selected_marketing, selected_agency) if selected_agency else []
-            selected_store_label = st.selectbox(
-                "매장명",
-                store_options,
-                index=None,
-                placeholder="매장을 선택하세요",
-                disabled=not selected_agency,
-                key=selection_keys["selected_store_label"],
-            )
-
-    # ------------------ 모바일 뷰 ------------------
-    with st.container(key="mobile_select_container"):
-        st.markdown('<div class="selection-hint">모바일에서는 세로 단계형 선택으로 전환되어 한 손으로도 입력하기 쉽습니다.</div>', unsafe_allow_html=True)
-        marketing_options_m = get_marketing_options(stores)
-        selected_marketing_m = st.selectbox(
+    with select_col1:
+        marketing_options = get_marketing_options(stores)
+        selected_marketing = st.selectbox(
             "마케팅팀",
-            marketing_options_m,
+            marketing_options,
             index=None,
             placeholder="마케팅팀을 선택하세요",
             format_func=get_marketing_display_label,
-            key=selection_keys["selected_marketing"] + "_m",
+            key=selection_keys["selected_marketing"],
         )
 
-        selected_agency_m = None
-        selected_store_label_m = None
+    selected_agency = None
+    selected_store_label = None
 
-        agency_options_m = get_agency_options(stores, selected_marketing_m) if selected_marketing_m else []
-        selected_agency_m = st.selectbox(
+    with select_col2:
+        agency_options = get_agency_options(stores, selected_marketing) if selected_marketing else []
+        selected_agency = st.selectbox(
             "대리점명",
-            agency_options_m,
+            agency_options,
             index=None,
             placeholder="대리점을 선택하세요",
-            disabled=not selected_marketing_m,
-            key=selection_keys["selected_agency"] + "_m",
+            disabled=not selected_marketing,
+            key=selection_keys["selected_agency"],
         )
 
-        store_options_m = get_store_options(stores, selected_marketing_m, selected_agency_m) if selected_agency_m else []
-        selected_store_label_m = st.selectbox(
+    with select_col3:
+        store_options = get_store_options(stores, selected_marketing, selected_agency) if selected_agency else []
+        selected_store_label = st.selectbox(
             "매장명",
-            store_options_m,
+            store_options,
             index=None,
             placeholder="매장을 선택하세요",
-            disabled=not selected_agency_m,
-            key=selection_keys["selected_store_label"] + "_m",
+            disabled=not selected_agency,
+            key=selection_keys["selected_store_label"],
         )
 
-    # 두 뷰 중 하나에서 매장이 선택되면 바인딩
-    final_store_label = selected_store_label or selected_store_label_m
-    if final_store_label:
-        selected_store = find_store_by_name_and_code(stores, final_store_label)
+    if selected_store_label:
+        selected_store = find_store_by_name_and_code(stores, selected_store_label)
 
 if selected_store is not None:
     make_store_card(selected_store)
@@ -882,203 +586,103 @@ st.markdown("</div>", unsafe_allow_html=True)
 
 
 st.subheader("2. 공사정보 등록 및 업데이트")
-st.caption("화면 크기에 따라 웹은 표형 편집, 모바일은 카드형 편집으로 자동 전환됩니다.")
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
 if target_stores.empty:
     st.info("1단계에서 대상 매장을 먼저 등록해 주세요.")
 else:
     records = load_records()
-    merged_rows = assign_display_numbers(merge_targets_with_records(target_stores, records))
+    merged_rows = build_construction_status_rows(target_stores, records)
 
     if merged_rows.empty:
         st.info("등록된 대상 매장이 없습니다.")
     else:
-        # =========================================================================
-        # 2-A. 데스크톱 뷰 (PC / Wide) - desktop_container
-        # =========================================================================
-        with st.container(key="desktop_container"):
-            header_cols = st.columns(DESKTOP_RECORD_COLUMN_WIDTHS)
+        header_cols = st.columns([0.48, 1.0, 0.9, 1.45, 2.0, 1.0, 1.45, 0.95, 0.85, 0.85])
+        header_labels = [
+            "NO",
+            "매장명",
+            "매장코드",
+            "주소",
+            "공사내용",
+            "시공업체",
+            "공사기간",
+            "공사완료여부",
+            "업데이트",
+            "삭제",
+        ]
 
-            for column, label in zip(header_cols, RECORD_HEADER_LABELS):
-                column.markdown(f'<div class="table-header-cell">{label}</div>', unsafe_allow_html=True)
+        for column, label in zip(header_cols, header_labels):
+            column.markdown(f"**{label}**")
 
-            for _, row in merged_rows.iterrows():
-                target_id = str(row["대상ID"])
-                desktop_keys = build_record_widget_keys(target_id)
-                store_code = str(row["매장코드"])
-                default_period = parse_period_text(str(row["공사기간"])) or (date.today(), date.today())
-                default_contractor = str(row["시공업체"]).strip()
-                contractor_index = (
-                    CONTRACTOR_OPTIONS.index(default_contractor)
-                    if default_contractor in CONTRACTOR_OPTIONS
-                    else 0
-                )
-                status_options = ["", "N", "Y"]
-                default_status = str(row["공사완료여부"]).strip()
-                status_index = status_options.index(default_status) if default_status in status_options else 0
+        for _, row in merged_rows.iterrows():
+            target_id = str(row["대상ID"])
+            store_code = str(row["매장코드"])
+            default_period = parse_period_text(str(row["공사기간"])) or (date.today(), date.today())
+            default_contractor = str(row["시공업체"]).strip()
+            contractor_index = (
+                CONTRACTOR_OPTIONS.index(default_contractor)
+                if default_contractor in CONTRACTOR_OPTIONS
+                else 0
+            )
+            status_options = ["", "N", "Y"]
+            default_status = str(row["공사완료여부"]).strip()
+            status_index = status_options.index(default_status) if default_status in status_options else 0
 
-                row_cols = st.columns(DESKTOP_RECORD_COLUMN_WIDTHS)
-                row_cols[0].write(str(row["NO"]))
-                row_cols[1].write(str(row["매장명"]))
-                row_cols[2].write(store_code)
-                row_cols[3].write(str(row["주소"]))
+            row_cols = st.columns([0.48, 1.0, 0.9, 1.45, 2.0, 1.0, 1.45, 0.95, 0.85, 0.85])
+            row_cols[0].write(str(row["NO"]))
+            row_cols[1].write(str(row["매장명"]))
+            row_cols[2].write(store_code)
+            row_cols[3].write(str(row["주소"]))
 
-                with row_cols[4]:
-                    st.text_input(
-                        f"공사내용_{target_id}",
-                        value=str(row["공사내용"]),
-                        label_visibility="collapsed",
-                        key=desktop_keys["detail"],
-                        placeholder="공사내용 입력",
-                    )
-
-                with row_cols[5]:
-                    st.selectbox(
-                        f"시공업체_{target_id}",
-                        CONTRACTOR_OPTIONS,
-                        index=contractor_index,
-                        format_func=lambda value: "선택" if value == "" else value,
-                        label_visibility="collapsed",
-                        key=desktop_keys["contractor"],
-                    )
-
-                with row_cols[6]:
-                    st.date_input(
-                        f"공사기간_{target_id}",
-                        value=default_period,
-                        format="YYYY-MM-DD",
-                        label_visibility="collapsed",
-                        key=desktop_keys["period"],
-                    )
-
-                with row_cols[7]:
-                    st.selectbox(
-                        f"공사완료여부_{target_id}",
-                        status_options,
-                        index=status_index,
-                        format_func=lambda value: "선택" if value == "" else value,
-                        label_visibility="collapsed",
-                        key=desktop_keys["status"],
-                    )
-
-                with row_cols[8]:
-                    st.button("업데이트", key=desktop_keys["update"], width="stretch")
-
-                with row_cols[9]:
-                    st.button("삭제", key=desktop_keys["delete"], width="stretch")
-
-        # =========================================================================
-        # 2-B. 모바일 뷰 (모바일 카드) - mobile_container
-        # =========================================================================
-        with st.container(key="mobile_container"):
-            for _, row in merged_rows.iterrows():
-                target_id = str(row["대상ID"])
-                mobile_keys = build_record_widget_keys(target_id, mobile=True)
-                store_code = str(row["매장코드"])
-                default_period = parse_period_text(str(row["공사기간"])) or (date.today(), date.today())
-                default_contractor = str(row["시공업체"]).strip()
-                contractor_index = (
-                    CONTRACTOR_OPTIONS.index(default_contractor)
-                    if default_contractor in CONTRACTOR_OPTIONS
-                    else 0
-                )
-                status_options = ["", "N", "Y"]
-                default_status = str(row["공사완료여부"]).strip()
-                status_index = status_options.index(default_status) if default_status in status_options else 0
-
-                # 개별 매장 정보를 감싸는 모바일 카드
-                st.markdown(f"""
-                <div class="mobile-card">
-                    <div class="mobile-card-header">
-                        <span class="mobile-card-no">NO {row["NO"]}</span>
-                        <span class="mobile-card-title">{row["매장명"]}</span>
-                    </div>
-                    <div class="mobile-card-meta"><b>매장코드:</b> {store_code}</div>
-                    <div class="mobile-card-meta"><b>주소:</b> {row["주소"]}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                st.markdown('<div class="mobile-field-label">공사내용</div>', unsafe_allow_html=True)
-                st.text_input(
-                    f"공사내용_모바일_{target_id}",
+            with row_cols[4]:
+                construction_detail = st.text_input(
+                    f"공사내용_{target_id}",
                     value=str(row["공사내용"]),
                     label_visibility="collapsed",
-                    key=mobile_keys["detail"],
+                    key=f"detail_{target_id}",
                     placeholder="공사내용 입력",
                 )
 
-                st.markdown('<div class="mobile-field-label">시공업체</div>', unsafe_allow_html=True)
-                st.selectbox(
-                    f"시공업체_모바일_{target_id}",
+            with row_cols[5]:
+                contractor_name = st.selectbox(
+                    f"시공업체_{target_id}",
                     CONTRACTOR_OPTIONS,
                     index=contractor_index,
                     format_func=lambda value: "선택" if value == "" else value,
                     label_visibility="collapsed",
-                    key=mobile_keys["contractor"],
+                    key=f"contractor_{target_id}",
                 )
 
-                st.markdown('<div class="mobile-field-label">공사기간</div>', unsafe_allow_html=True)
-                st.date_input(
-                    f"공사기간_모바일_{target_id}",
+            with row_cols[6]:
+                selected_period = st.date_input(
+                    f"공사기간_{target_id}",
                     value=default_period,
                     format="YYYY-MM-DD",
                     label_visibility="collapsed",
-                    key=mobile_keys["period"],
+                    key=f"period_{target_id}",
                 )
 
-                st.markdown('<div class="mobile-field-label">공사완료여부</div>', unsafe_allow_html=True)
-                st.selectbox(
-                    f"공사완료여부_모바일_{target_id}",
+            with row_cols[7]:
+                selected_status = st.selectbox(
+                    f"공사완료여부_{target_id}",
                     status_options,
                     index=status_index,
                     format_func=lambda value: "선택" if value == "" else value,
                     label_visibility="collapsed",
-                    key=mobile_keys["status"],
+                    key=f"status_{target_id}",
                 )
 
-                # 업데이트/삭제 가로 배치
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    st.button("업데이트", key=mobile_keys["update"], width="stretch")
-                with btn_col2:
-                    st.button("삭제", key=mobile_keys["delete"], width="stretch")
-                
-                # 카드 간 구분선
-                st.markdown('<div class="record-divider"></div>', unsafe_allow_html=True)
+            with row_cols[8]:
+                update_clicked = st.button("업데이트", key=f"update_{target_id}", width="stretch")
 
-        # =========================================================================
-        # 2-C. 업데이트 및 삭제 핸들러 (통합 처리)
-        # =========================================================================
-        for _, row in merged_rows.iterrows():
-            target_id = str(row["대상ID"])
-            store_code = str(row["매장코드"])
-            desktop_keys = build_record_widget_keys(target_id)
-            mobile_keys = build_record_widget_keys(target_id, mobile=True)
-            
-            # 이벤트 트리거 확인
-            update_clicked = st.session_state.get(desktop_keys["update"], False)
-            update_clicked_m = st.session_state.get(mobile_keys["update"], False)
-            delete_clicked = st.session_state.get(desktop_keys["delete"], False)
-            delete_clicked_m = st.session_state.get(mobile_keys["delete"], False)
+            with row_cols[9]:
+                delete_clicked = st.button("삭제", key=f"delete_{target_id}", width="stretch")
 
-            if update_clicked or update_clicked_m:
-                # 활성화된 위젯 종류에 따라 상태 추출
-                if update_clicked_m:
-                    detail_val = st.session_state.get(mobile_keys["detail"], "").strip()
-                    contractor_val = st.session_state.get(mobile_keys["contractor"], "")
-                    period_val = st.session_state.get(mobile_keys["period"], (date.today(), date.today()))
-                    status_val = st.session_state.get(mobile_keys["status"], "")
-                else:
-                    detail_val = st.session_state.get(desktop_keys["detail"], "").strip()
-                    contractor_val = st.session_state.get(desktop_keys["contractor"], "")
-                    period_val = st.session_state.get(desktop_keys["period"], (date.today(), date.today()))
-                    status_val = st.session_state.get(desktop_keys["status"], "")
-
-                if len(period_val) != 2:
+            if update_clicked:
+                if len(selected_period) != 2:
                     st.error(f"{row['매장명']}의 공사 시작일과 종료일을 모두 선택해 주세요.")
                 else:
-                    start_date, end_date = period_val
+                    start_date, end_date = selected_period
                     is_valid, message = validate_period_dates(start_date, end_date)
 
                     if not is_valid:
@@ -1097,10 +701,10 @@ else:
                             "매장명": row["매장명"],
                             "매장코드": store_code,
                             "주소": row["주소"],
-                            "공사내용": detail_val,
-                            "시공업체": contractor_val,
+                            "공사내용": construction_detail.strip(),
+                            "시공업체": contractor_name,
                             "공사기간": period_text,
-                            "공사완료여부": status_val,
+                            "공사완료여부": selected_status,
                             "완료처리일": "",
                         }
 
@@ -1114,7 +718,7 @@ else:
                         st.success(f"{row['매장명']} 공사정보가 업데이트되었습니다.")
                         st.rerun()
 
-            if delete_clicked or delete_clicked_m:
+            if delete_clicked:
                 st.session_state["pending_delete_target_id"] = target_id
                 st.rerun()
 
@@ -1150,5 +754,30 @@ else:
                         st.session_state.pop("pending_delete_target_id", None)
                         st.info("삭제가 취소되었습니다.")
                         st.rerun()
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+
+st.subheader("3. 공사현황 PDF로 보기")
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
+
+latest_targets = load_target_stores()
+latest_records = load_records()
+pdf_rows = build_construction_status_rows(latest_targets, latest_records)
+
+if pdf_rows.empty:
+    st.info("PDF로 표시할 공사현황이 없습니다.")
+else:
+    try:
+        pdf_bytes = generate_construction_status_pdf(pdf_rows)
+        st.download_button(
+            "공사현황 PDF로 다운로드",
+            data=pdf_bytes,
+            file_name=build_pdf_download_name(),
+            mime="application/pdf",
+            width="stretch",
+        )
+    except ImportError:
+        st.error("PDF 생성을 위한 reportlab 패키지를 찾을 수 없습니다.")
 
 st.markdown("</div>", unsafe_allow_html=True)

@@ -5,11 +5,14 @@ import pandas as pd
 
 from app_logic import (
     assign_display_numbers,
-    build_record_widget_keys,
+    build_pdf_preview_html,
+    build_pdf_download_name,
     build_period_text,
+    build_construction_status_rows,
     choose_store_data_source,
     find_store_by_code,
     find_store_by_name_and_code,
+    generate_construction_status_pdf,
     get_agency_options,
     get_marketing_display_label,
     get_marketing_options,
@@ -266,6 +269,88 @@ class AppLogicTests(unittest.TestCase):
         self.assertEqual(numbered["매장코드"].tolist(), ["D100", "D200", "D200", "D300"])
         self.assertEqual(numbered["NO"].tolist(), ["1", "2-1", "2-2", "3"])
 
+    def test_build_construction_status_rows_combines_targets_records_and_numbers(self) -> None:
+        targets = pd.DataFrame(
+            [
+                {
+                    "대상ID": "T1",
+                    "등록일시": "2026-05-22 09:00:00",
+                    "마케팅팀": "경북",
+                    "대리점명": "서울대리점",
+                    "매장명": "강남점",
+                    "매장코드": "D200",
+                    "주소": "서울 강남구",
+                },
+                {
+                    "대상ID": "T2",
+                    "등록일시": "2026-05-22 09:10:00",
+                    "마케팅팀": "경북",
+                    "대리점명": "서울대리점",
+                    "매장명": "강남점",
+                    "매장코드": "D200",
+                    "주소": "서울 강남구",
+                },
+            ]
+        )
+        records = pd.DataFrame(
+            [
+                {
+                    "대상ID": "T2",
+                    "등록일시": "2026-05-23 11:00:00",
+                    "마케팅팀": "경북",
+                    "대리점명": "서울대리점",
+                    "매장명": "강남점",
+                    "매장코드": "D200",
+                    "주소": "서울 강남구",
+                    "공사내용": "간판 교체",
+                    "시공업체": "티엔에스",
+                    "공사기간": "2026-05-23 ~ 2026-05-30",
+                    "공사완료여부": "N",
+                    "완료처리일": "",
+                }
+            ]
+        )
+
+        result = build_construction_status_rows(targets, records)
+
+        self.assertEqual(result["NO"].tolist(), ["1-1", "1-2"])
+        self.assertEqual(result.iloc[0]["공사내용"], "")
+        self.assertEqual(result.iloc[1]["공사내용"], "간판 교체")
+
+    def test_generate_construction_status_pdf_returns_pdf_bytes_with_store_values(self) -> None:
+        rows = pd.DataFrame(
+            [
+                {
+                    "NO": "1",
+                    "매장명": "강남점",
+                    "매장코드": "D200",
+                    "주소": "서울 강남구",
+                    "공사내용": "간판 교체",
+                    "시공업체": "티엔에스",
+                    "공사기간": "2026-05-23 ~ 2026-05-30",
+                    "공사완료여부": "Y",
+                }
+            ]
+        )
+
+        pdf_bytes = generate_construction_status_pdf(rows)
+
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+        self.assertGreater(len(pdf_bytes), 500)
+
+    def test_build_pdf_preview_html_uses_blob_url_instead_of_data_iframe_src(self) -> None:
+        html = build_pdf_preview_html(b"%PDF-1.4 sample")
+
+        self.assertIn("URL.createObjectURL", html)
+        self.assertIn("application/pdf", html)
+        self.assertNotIn('src="data:application/pdf', html)
+
+    def test_build_pdf_download_name_returns_expected_korean_filename(self) -> None:
+        self.assertEqual(
+            build_pdf_download_name(),
+            "유통망 공사현황_대구마케팅담당.pdf",
+        )
+
     def test_parse_period_text_returns_two_dates(self) -> None:
         start_date, end_date = parse_period_text("2026-05-23 ~ 2026-05-30")
 
@@ -307,36 +392,6 @@ class AppLogicTests(unittest.TestCase):
 
         self.assertNotEqual(first_keys["selected_marketing"], second_keys["selected_marketing"])
         self.assertNotEqual(first_keys["selected_store_label"], second_keys["selected_store_label"])
-
-    def test_build_record_widget_keys_returns_desktop_keys_by_default(self) -> None:
-        keys = build_record_widget_keys("target-1")
-
-        self.assertEqual(
-            keys,
-            {
-                "detail": "detail_target-1",
-                "contractor": "contractor_target-1",
-                "period": "period_target-1",
-                "status": "status_target-1",
-                "update": "update_target-1",
-                "delete": "delete_target-1",
-            },
-        )
-
-    def test_build_record_widget_keys_returns_mobile_suffixes_for_mobile_view(self) -> None:
-        keys = build_record_widget_keys("target-1", mobile=True)
-
-        self.assertEqual(
-            keys,
-            {
-                "detail": "detail_m_target-1",
-                "contractor": "contractor_m_target-1",
-                "period": "period_m_target-1",
-                "status": "status_m_target-1",
-                "update": "update_m_target-1",
-                "delete": "delete_m_target-1",
-            },
-        )
 
 
 
