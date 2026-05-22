@@ -333,25 +333,15 @@ st.markdown(
         border-color: #ef9a9a !important;
     }
 
-    /* 반응형 기기 분할 미디어 쿼리 - has() 선택자 적용 */
+    /* -------------------------------------------------------------------------
+       100% 순수 CSS 미디어 쿼리 반응형 엔진 (단일 소스)
+       ------------------------------------------------------------------------- */
     @media (max-width: 991px) {
-        /* 모바일 이하일 때 데스크톱 컨테이너들을 통째로 숨김 */
-        div[key="desktop_container"],
-        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="desktop_container"]),
-        div[data-testid="element-container"]:has([key="desktop_container"]),
-        div[key="desktop_select_container"],
-        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="desktop_select_container"]) {
-            display: none !important;
+        .main .block-container {
+            padding-left: 0.8rem;
+            padding-right: 0.8rem;
         }
-        
-        /* 모바일 컨테이너는 보이게 함 */
-        div[key="mobile_container"],
-        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="mobile_container"]),
-        div[key="mobile_select_container"],
-        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="mobile_select_container"]) {
-            display: block !important;
-        }
-        
+
         .hero-card {
             padding: 20px;
             border-radius: 18px;
@@ -365,92 +355,139 @@ st.markdown(
             font-size: 15px;
         }
 
-        .main .block-container {
-            padding-left: 0.8rem;
-            padding-right: 0.8rem;
-        }
-    }
-
-    @media (min-width: 992px) {
-        /* 데스크톱일 때 모바일 컨테이너들을 통째로 숨김 */
-        div[key="mobile_container"],
-        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="mobile_container"]),
-        div[data-testid="element-container"]:has([key="mobile_container"]),
-        div[key="mobile_select_container"],
-        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="mobile_select_container"]) {
+        /* 1-A. 모바일 뷰포트에서 데스크톱 전용 헤더 컨테이너 완벽 삭제 */
+        div[key="desktop_header"],
+        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="desktop_header"]) {
             display: none !important;
         }
-        
-        /* 데스크톱 컨테이너는 보이게 함 */
-        div[key="desktop_container"],
-        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="desktop_container"]),
-        div[key="desktop_select_container"],
-        div[data-testid="stVerticalBlockBorderWrapper"]:has([key="desktop_select_container"]) {
-            display: block !important;
+
+        /* 1-B. 모바일에서 모든 st.columns(stHorizontalBlock)을 카드 및 세로 플렉스 구조화 */
+        div[data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 20px !important;
+            padding: 20px !important;
+            margin-bottom: 24px !important;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04) !important;
+            gap: 12px 0 !important;
         }
-    }
 
-    /* 모바일 카드 스타일 */
-    .mobile-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 16px;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
+        /* 1-C. 1~8번째 데이터 컬럼들을 100% 가로폭으로 세로 배치 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:not(:nth-child(9)):not(:nth-child(10)) {
+            width: 100% !important;
+            min-width: 100% !important;
+            flex-basis: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
 
-    .mobile-card:hover {
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-        border-color: #cbd5e1;
-    }
+        /* 1-D. 9번째(업데이트), 10번째(삭제) 버튼 컬럼들을 하단에 50%씩 반반 가로 배치 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(9),
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(10) {
+            width: 48% !important;
+            min-width: 48% !important;
+            flex-basis: 48% !important;
+            display: inline-block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(9) {
+            margin-right: 4% !important;
+        }
 
-    .mobile-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid #f1f5f9;
-        padding-bottom: 8px;
-        margin-bottom: 12px;
-    }
+        /* 1-E. 모바일 뷰포트에서 개별 컬럼 바로 위에 가상 안내 레이블 주입 */
+        /* 1번째 컬럼: NO */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1):before {
+            content: "NO / 공사 순번";
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
 
-    .mobile-card-no {
-        background: #eff6ff;
-        color: #2563eb;
-        font-weight: 800;
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-    }
+        /* 2번째 컬럼: 매장명 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2):before {
+            content: "매장명";
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
+            font-size: 17px !important;
+            font-weight: 800 !important;
+            color: #0f172a !important;
+        }
 
-    .mobile-card-title {
-        font-size: 16px;
-        font-weight: 800;
-        color: #0f172a;
-    }
+        /* 3번째 컬럼: 매장코드 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3):before {
+            content: "매장코드";
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
 
-    .mobile-card-meta {
-        color: #64748b;
-        font-size: 13px;
-        margin-bottom: 4px;
-        line-height: 1.4;
-    }
+        /* 4번째 컬럼: 주소 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(4):before {
+            content: "주소";
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
 
-    .mobile-field-label {
-        font-size: 12px;
-        font-weight: 700;
-        color: #475569;
-        margin-top: 10px;
-        margin-bottom: 4px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
+        /* 5번째 컬럼: 공사내용 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(5):before {
+            content: "공사내용";
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 4px;
+            margin-top: 6px;
+        }
 
-    .mobile-action-cols {
-        margin-top: 16px;
-        padding-top: 12px;
-        border-top: 1px dashed #e2e8f0;
+        /* 6번째 컬럼: 시공업체 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6):before {
+            content: "시공업체";
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 4px;
+            margin-top: 6px;
+        }
+
+        /* 7번째 컬럼: 공사기간 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(7):before {
+            content: "공사기간";
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 4px;
+            margin-top: 6px;
+        }
+
+        /* 8번째 컬럼: 공사완료여부 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(8):before {
+            content: "공사완료여부";
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 4px;
+            margin-top: 6px;
+        }
     }
     </style>
     """,
