@@ -124,6 +124,18 @@ def get_selection_widget_keys(reset_token: int) -> dict[str, str]:
     }
 
 
+def build_record_widget_keys(target_id: str, mobile: bool = False) -> dict[str, str]:
+    suffix = "_m" if mobile else ""
+    return {
+        "detail": f"detail{suffix}_{target_id}",
+        "contractor": f"contractor{suffix}_{target_id}",
+        "period": f"period{suffix}_{target_id}",
+        "status": f"status{suffix}_{target_id}",
+        "update": f"update{suffix}_{target_id}",
+        "delete": f"delete{suffix}_{target_id}",
+    }
+
+
 def make_store_display_options(stores: pd.DataFrame) -> list[str]:
     store_df = stores.copy()
     store_df["매장표시명"] = store_df["매장명"] + " / " + store_df["매장코드"]

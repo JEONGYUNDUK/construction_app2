@@ -5,6 +5,7 @@ import pandas as pd
 
 from app_logic import (
     assign_display_numbers,
+    build_record_widget_keys,
     build_period_text,
     choose_store_data_source,
     find_store_by_code,
@@ -306,6 +307,36 @@ class AppLogicTests(unittest.TestCase):
 
         self.assertNotEqual(first_keys["selected_marketing"], second_keys["selected_marketing"])
         self.assertNotEqual(first_keys["selected_store_label"], second_keys["selected_store_label"])
+
+    def test_build_record_widget_keys_returns_desktop_keys_by_default(self) -> None:
+        keys = build_record_widget_keys("target-1")
+
+        self.assertEqual(
+            keys,
+            {
+                "detail": "detail_target-1",
+                "contractor": "contractor_target-1",
+                "period": "period_target-1",
+                "status": "status_target-1",
+                "update": "update_target-1",
+                "delete": "delete_target-1",
+            },
+        )
+
+    def test_build_record_widget_keys_returns_mobile_suffixes_for_mobile_view(self) -> None:
+        keys = build_record_widget_keys("target-1", mobile=True)
+
+        self.assertEqual(
+            keys,
+            {
+                "detail": "detail_m_target-1",
+                "contractor": "contractor_m_target-1",
+                "period": "period_m_target-1",
+                "status": "status_m_target-1",
+                "update": "update_m_target-1",
+                "delete": "delete_m_target-1",
+            },
+        )
 
 
 
