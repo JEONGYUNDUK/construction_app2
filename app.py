@@ -266,7 +266,7 @@ st.markdown(
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
         color: white;
         box-shadow: 0 16px 35px rgba(15, 23, 42, 0.18);
-        margin-bottom: 20px;
+        margin-bottom: 14px;
     }
 
     .hero-title {
@@ -274,6 +274,14 @@ st.markdown(
         font-weight: 800;
         margin-bottom: 6px;
         letter-spacing: -0.6px;
+    }
+
+    .section-title {
+        color: #0f172a;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.4px;
+        margin: 0 0 10px 0;
     }
 
     .section-card {
@@ -485,7 +493,6 @@ def make_store_card(store: pd.Series) -> None:
 
 stores = load_store_data()
 target_stores = load_target_stores()
-records = load_records()
 reset_token = st.session_state.get("selection_reset_token", 0)
 selection_keys = get_selection_widget_keys(reset_token)
 
@@ -498,12 +505,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-summary_col1, summary_col2 = st.columns(2)
-with summary_col2:
-    st.caption(f"2단계 등록 공사정보: {len(records):,}건")
-
-
-st.subheader("1. 대상 매장 등록")
+st.markdown('<div class="section-title">1. 대상 매장 등록</div>', unsafe_allow_html=True)
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
 select_method = st.radio(
