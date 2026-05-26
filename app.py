@@ -266,7 +266,7 @@ st.markdown(
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
         color: white;
         box-shadow: 0 16px 35px rgba(15, 23, 42, 0.18);
-        margin-bottom: 14px;
+        margin-bottom: 20px;
     }
 
     .hero-title {
@@ -274,14 +274,6 @@ st.markdown(
         font-weight: 800;
         margin-bottom: 6px;
         letter-spacing: -0.6px;
-    }
-
-    .section-title {
-        color: #0f172a;
-        font-size: 26px;
-        font-weight: 800;
-        letter-spacing: -0.4px;
-        margin: 0 0 10px 0;
     }
 
     .section-card {
@@ -505,7 +497,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="section-title">1. 대상 매장 등록</div>', unsafe_allow_html=True)
+st.subheader("1. 대상 매장 등록")
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
 select_method = st.radio(
