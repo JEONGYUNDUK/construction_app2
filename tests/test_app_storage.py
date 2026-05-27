@@ -5,6 +5,7 @@ import base64
 import pandas as pd
 
 from app_storage import (
+    GoogleSheetsRepository,
     build_google_service_account_info,
     build_google_service_account_info_from_base64,
     build_google_service_account_info_from_json,
@@ -128,6 +129,30 @@ class AppStorageTests(unittest.TestCase):
         self.assertIn("sheet-123", message)
         self.assertIn("svc@example.iam.gserviceaccount.com", message)
         self.assertIn("편집자", message)
+
+    def test_repository_retries_transient_open_error_before_success(self) -> None:
+        repository = GoogleSheetsRepository(
+            spreadsheet_id="sheet-123",
+            service_account_info={"client_email": "svc@example.com"},
+        )
+        attempts = {"count": 0}
+
+        class FakeAPIError(Exception):
+            pass
+
+        class FakeWorksheet:
+            pass
+
+        def open_sheet():
+            attempts["count"] += 1
+            if attempts["count"] < 3:
+                raise FakeAPIError("temporary")
+            return FakeWorksheet()
+
+        worksheet = repository._retry_google_api_call(open_sheet, FakeAPIError)
+
+        self.assertIsInstance(worksheet, FakeWorksheet)
+        self.assertEqual(attempts["count"], 3)
 
 
 if __name__ == "__main__":

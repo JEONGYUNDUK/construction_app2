@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 import json
 from re import search
+import time
 
 import pandas as pd
 
@@ -111,6 +112,18 @@ class GoogleSheetsRepository:
     spreadsheet_id: str
     service_account_info: dict[str, str]
 
+    def _retry_google_api_call(self, func, api_error_type, retries: int = 3, delay_seconds: float = 0.6):
+        last_error = None
+        for attempt in range(retries):
+            try:
+                return func()
+            except api_error_type as exc:
+                last_error = exc
+                if attempt == retries - 1:
+                    raise
+                time.sleep(delay_seconds * (attempt + 1))
+        raise last_error  # pragma: no cover
+
     def _open_worksheet(self, worksheet_name: str):
         import gspread
         from google.oauth2.service_account import Credentials
@@ -119,7 +132,10 @@ class GoogleSheetsRepository:
         credentials = Credentials.from_service_account_info(self.service_account_info, scopes=scopes)
         client = gspread.authorize(credentials)
         try:
-            spreadsheet = client.open_by_key(self.spreadsheet_id)
+            spreadsheet = self._retry_google_api_call(
+                lambda: client.open_by_key(self.spreadsheet_id),
+                gspread.APIError,
+            )
         except gspread.APIError as exc:
             raise ValueError(
                 format_google_sheets_api_error(
@@ -136,15 +152,15 @@ class GoogleSheetsRepository:
 
     def load_dataframe(self, worksheet_name: str, columns: list[str]) -> pd.DataFrame:
         worksheet = self._open_worksheet(worksheet_name)
-        values = worksheet.get_all_values()
+        values = self._retry_google_api_call(worksheet.get_all_values, Exception)
 
         if not values:
-            worksheet.update("A1", [columns])
+            self._retry_google_api_call(lambda: worksheet.update("A1", [columns]), Exception)
             return pd.DataFrame(columns=columns)
 
         return sheet_values_to_dataframe(values, columns)
 
     def save_dataframe(self, worksheet_name: str, frame: pd.DataFrame, columns: list[str]) -> None:
         worksheet = self._open_worksheet(worksheet_name)
-        worksheet.clear()
-        worksheet.update("A1", build_sheet_rows(frame, columns))
+        self._retry_google_api_call(worksheet.clear, Exception)
+        self._retry_google_api_call(lambda: worksheet.update("A1", build_sheet_rows(frame, columns)), Exception)
