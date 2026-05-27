@@ -115,6 +115,12 @@ class GoogleSheetsRepository:
     _spreadsheet: object | None = field(default=None, init=False, repr=False)
     _worksheets: dict[str, object] = field(default_factory=dict, init=False, repr=False)
 
+    def _ensure_cache_attributes(self) -> None:
+        if "_spreadsheet" not in self.__dict__:
+            self._spreadsheet = None
+        if "_worksheets" not in self.__dict__:
+            self._worksheets = {}
+
     def _retry_google_api_call(self, func, api_error_type, retries: int = 3, delay_seconds: float = 0.6):
         last_error = None
         for attempt in range(retries):
@@ -132,6 +138,7 @@ class GoogleSheetsRepository:
         from gspread.exceptions import APIError
         from google.oauth2.service_account import Credentials
 
+        self._ensure_cache_attributes()
         if self._spreadsheet is not None:
             return self._spreadsheet
 
@@ -156,6 +163,7 @@ class GoogleSheetsRepository:
     def _fetch_worksheet(self, worksheet_name: str):
         import gspread
 
+        self._ensure_cache_attributes()
         spreadsheet = self._get_spreadsheet()
         try:
             return spreadsheet.worksheet(worksheet_name)
@@ -163,6 +171,7 @@ class GoogleSheetsRepository:
             return spreadsheet.add_worksheet(title=worksheet_name, rows=1000, cols=32)
 
     def _open_worksheet(self, worksheet_name: str):
+        self._ensure_cache_attributes()
         if worksheet_name not in self._worksheets:
             self._worksheets[worksheet_name] = self._fetch_worksheet(worksheet_name)
         return self._worksheets[worksheet_name]

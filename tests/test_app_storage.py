@@ -175,6 +175,23 @@ class AppStorageTests(unittest.TestCase):
         self.assertIs(second, worksheet)
         self.assertEqual(calls["count"], 1)
 
+    def test_repository_initializes_missing_cache_attributes(self) -> None:
+        repository = GoogleSheetsRepository(
+            spreadsheet_id="sheet-123",
+            service_account_info={"client_email": "svc@example.com"},
+        )
+        repository.__dict__.pop("_worksheets", None)
+        repository.__dict__.pop("_spreadsheet", None)
+
+        worksheet = object()
+        repository._fetch_worksheet = lambda name: worksheet  # type: ignore[method-assign]
+
+        result = repository._open_worksheet("targets")
+
+        self.assertIs(result, worksheet)
+        self.assertEqual(repository._worksheets["targets"], worksheet)
+        self.assertIsNone(repository._spreadsheet)
+
 
 if __name__ == "__main__":
     unittest.main()
