@@ -9,6 +9,7 @@ import streamlit as st
 from app_storage import (
     GoogleSheetsRepository,
     build_google_service_account_info,
+    build_google_service_account_info_from_base64,
     extract_spreadsheet_id,
 )
 
@@ -471,7 +472,11 @@ def load_local_storage_backup(path: Path, columns: list[str]) -> pd.DataFrame:
 @st.cache_resource(show_spinner=False)
 def get_storage_repository() -> GoogleSheetsRepository:
     try:
-        if "gcp_service_account_json" in st.secrets:
+        if "gcp_service_account_json_base64" in st.secrets:
+            service_account_info = build_google_service_account_info_from_base64(
+                str(st.secrets["gcp_service_account_json_base64"])
+            )
+        elif "gcp_service_account_json" in st.secrets:
             service_account_info = build_google_service_account_info(
                 json.loads(str(st.secrets["gcp_service_account_json"]))
             )
@@ -481,8 +486,9 @@ def get_storage_repository() -> GoogleSheetsRepository:
         spreadsheet_id = extract_spreadsheet_id(sheet_settings)
     except KeyError:
         st.error(
-            "Google Sheets 설정이 없습니다. Streamlit Secrets에 `gcp_service_account_json` 또는 "
-            "`gcp_service_account`와 `google_sheets.spreadsheet_id`를 추가해 주세요."
+            "Google Sheets 설정이 없습니다. Streamlit Secrets에 `gcp_service_account_json_base64`, "
+            "`gcp_service_account_json` 또는 `gcp_service_account`와 "
+            "`google_sheets.spreadsheet_id`를 추가해 주세요."
         )
         st.stop()
     except ValueError as exc:

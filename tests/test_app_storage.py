@@ -1,10 +1,12 @@
 import unittest
 import json
+import base64
 
 import pandas as pd
 
 from app_storage import (
     build_google_service_account_info,
+    build_google_service_account_info_from_base64,
     build_google_service_account_info_from_json,
     build_sheet_rows,
     extract_spreadsheet_id,
@@ -26,6 +28,28 @@ class AppStorageTests(unittest.TestCase):
 
         info = build_google_service_account_info(secrets)
 
+        self.assertEqual(
+            info["private_key"],
+            "-----BEGIN PRIVATE KEY-----\nabc\ndef\n-----END PRIVATE KEY-----\n",
+        )
+
+    def test_build_google_service_account_info_from_base64_parses_encoded_json(self) -> None:
+        json_text = json.dumps(
+            {
+                "type": "service_account",
+                "project_id": "demo-project",
+                "private_key_id": "key-id",
+                "private_key": "-----BEGIN PRIVATE KEY-----\\nabc\\ndef\\n-----END PRIVATE KEY-----\\n",
+                "client_email": "svc@example.iam.gserviceaccount.com",
+                "client_id": "client-id",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        )
+        encoded = base64.b64encode(json_text.encode("utf-8")).decode("ascii")
+
+        info = build_google_service_account_info_from_base64(encoded)
+
+        self.assertEqual(info["project_id"], "demo-project")
         self.assertEqual(
             info["private_key"],
             "-----BEGIN PRIVATE KEY-----\nabc\ndef\n-----END PRIVATE KEY-----\n",

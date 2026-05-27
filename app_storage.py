@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from collections.abc import Mapping
 from dataclasses import dataclass
 import json
@@ -40,6 +41,15 @@ def build_google_service_account_info_from_json(json_text: str) -> dict[str, str
         raise ValueError("gcp_service_account_json 값은 JSON 객체여야 합니다.")
 
     return build_google_service_account_info(payload)
+
+
+def build_google_service_account_info_from_base64(encoded_text: str) -> dict[str, str]:
+    try:
+        decoded = base64.b64decode(encoded_text).decode("utf-8")
+    except Exception as exc:
+        raise ValueError("gcp_service_account_json_base64 값이 올바른 base64 형식이 아닙니다.") from exc
+
+    return build_google_service_account_info_from_json(decoded)
 
 
 def extract_spreadsheet_id(settings: Mapping[str, object]) -> str:
