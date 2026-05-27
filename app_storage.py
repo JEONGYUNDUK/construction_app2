@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+import json
 from re import search
 
 import pandas as pd
@@ -27,6 +28,18 @@ def build_google_service_account_info(secrets: Mapping[str, object]) -> dict[str
 
     info["private_key"] = info["private_key"].replace("\\n", "\n")
     return info
+
+
+def build_google_service_account_info_from_json(json_text: str) -> dict[str, str]:
+    try:
+        payload = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        raise ValueError("gcp_service_account_json 값이 올바른 JSON 형식이 아닙니다.") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError("gcp_service_account_json 값은 JSON 객체여야 합니다.")
+
+    return build_google_service_account_info(payload)
 
 
 def extract_spreadsheet_id(settings: Mapping[str, object]) -> str:
