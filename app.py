@@ -1,4 +1,5 @@
 from html import escape
+import json
 from pathlib import Path
 from datetime import date, datetime
 from uuid import uuid4
@@ -8,7 +9,6 @@ import streamlit as st
 from app_storage import (
     GoogleSheetsRepository,
     build_google_service_account_info,
-    build_google_service_account_info_from_json,
     extract_spreadsheet_id,
 )
 
@@ -472,8 +472,8 @@ def load_local_storage_backup(path: Path, columns: list[str]) -> pd.DataFrame:
 def get_storage_repository() -> GoogleSheetsRepository:
     try:
         if "gcp_service_account_json" in st.secrets:
-            service_account_info = build_google_service_account_info_from_json(
-                str(st.secrets["gcp_service_account_json"])
+            service_account_info = build_google_service_account_info(
+                json.loads(str(st.secrets["gcp_service_account_json"]))
             )
         else:
             service_account_info = build_google_service_account_info(dict(st.secrets["gcp_service_account"]))
@@ -487,6 +487,9 @@ def get_storage_repository() -> GoogleSheetsRepository:
         st.stop()
     except ValueError as exc:
         st.error(str(exc))
+        st.stop()
+    except json.JSONDecodeError:
+        st.error("gcp_service_account_json 값이 올바른 JSON 형식이 아닙니다.")
         st.stop()
 
     return GoogleSheetsRepository(
