@@ -65,6 +65,22 @@ def extract_spreadsheet_id(settings: Mapping[str, object]) -> str:
     raise ValueError("Google Sheets 문서 ID 또는 URL 설정이 없습니다.")
 
 
+def format_google_sheets_api_error(exc: Exception, spreadsheet_id: str, client_email: str) -> str:
+    status_code = getattr(getattr(exc, "response", None), "status_code", None)
+
+    if status_code in (403, 404):
+        return (
+            "Google Sheets 문서에 접근할 수 없습니다. "
+            f"문서 ID(`{spreadsheet_id}`)가 맞는지 확인하고, "
+            f"`{client_email}` 계정을 해당 시트의 편집자로 공유해 주세요."
+        )
+
+    return (
+        "Google Sheets API 호출 중 오류가 발생했습니다. "
+        "시트 공유 권한과 spreadsheet_id를 다시 확인해 주세요."
+    )
+
+
 def sheet_values_to_dataframe(values: list[list[str]], columns: list[str]) -> pd.DataFrame:
     if not values:
         return pd.DataFrame(columns=columns)
@@ -102,7 +118,16 @@ class GoogleSheetsRepository:
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         credentials = Credentials.from_service_account_info(self.service_account_info, scopes=scopes)
         client = gspread.authorize(credentials)
-        spreadsheet = client.open_by_key(self.spreadsheet_id)
+        try:
+            spreadsheet = client.open_by_key(self.spreadsheet_id)
+        except gspread.APIError as exc:
+            raise ValueError(
+                format_google_sheets_api_error(
+                    exc,
+                    spreadsheet_id=self.spreadsheet_id,
+                    client_email=self.service_account_info["client_email"],
+                )
+            ) from exc
 
         try:
             return spreadsheet.worksheet(worksheet_name)

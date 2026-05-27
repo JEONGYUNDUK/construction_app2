@@ -10,6 +10,7 @@ from app_storage import (
     build_google_service_account_info_from_json,
     build_sheet_rows,
     extract_spreadsheet_id,
+    format_google_sheets_api_error,
     sheet_values_to_dataframe,
 )
 
@@ -110,6 +111,23 @@ class AppStorageTests(unittest.TestCase):
 
         self.assertEqual(rows[0], columns)
         self.assertEqual(rows[1], ["T1", "D100", "강남점", ""])
+
+    def test_format_google_sheets_api_error_mentions_share_and_sheet_id_for_404(self) -> None:
+        class FakeResponse:
+            status_code = 404
+
+        class FakeAPIError(Exception):
+            response = FakeResponse()
+
+        message = format_google_sheets_api_error(
+            FakeAPIError(),
+            spreadsheet_id="sheet-123",
+            client_email="svc@example.iam.gserviceaccount.com",
+        )
+
+        self.assertIn("sheet-123", message)
+        self.assertIn("svc@example.iam.gserviceaccount.com", message)
+        self.assertIn("편집자", message)
 
 
 if __name__ == "__main__":
