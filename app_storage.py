@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from collections.abc import Mapping
 from dataclasses import dataclass
+from dataclasses import field
 import json
 from re import search
 import time
@@ -111,6 +112,8 @@ def build_sheet_rows(frame: pd.DataFrame, columns: list[str]) -> list[list[str]]
 class GoogleSheetsRepository:
     spreadsheet_id: str
     service_account_info: dict[str, str]
+    _spreadsheet: object | None = field(default=None, init=False, repr=False)
+    _worksheets: dict[str, object] = field(default_factory=dict, init=False, repr=False)
 
     def _retry_google_api_call(self, func, api_error_type, retries: int = 3, delay_seconds: float = 0.6):
         last_error = None
@@ -124,15 +127,18 @@ class GoogleSheetsRepository:
                 time.sleep(delay_seconds * (attempt + 1))
         raise last_error  # pragma: no cover
 
-    def _open_worksheet(self, worksheet_name: str):
+    def _get_spreadsheet(self):
         import gspread
         from google.oauth2.service_account import Credentials
+
+        if self._spreadsheet is not None:
+            return self._spreadsheet
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         credentials = Credentials.from_service_account_info(self.service_account_info, scopes=scopes)
         client = gspread.authorize(credentials)
         try:
-            spreadsheet = self._retry_google_api_call(
+            self._spreadsheet = self._retry_google_api_call(
                 lambda: client.open_by_key(self.spreadsheet_id),
                 gspread.APIError,
             )
@@ -144,11 +150,21 @@ class GoogleSheetsRepository:
                     client_email=self.service_account_info["client_email"],
                 )
             ) from exc
+        return self._spreadsheet
 
+    def _fetch_worksheet(self, worksheet_name: str):
+        import gspread
+
+        spreadsheet = self._get_spreadsheet()
         try:
             return spreadsheet.worksheet(worksheet_name)
         except gspread.WorksheetNotFound:
             return spreadsheet.add_worksheet(title=worksheet_name, rows=1000, cols=32)
+
+    def _open_worksheet(self, worksheet_name: str):
+        if worksheet_name not in self._worksheets:
+            self._worksheets[worksheet_name] = self._fetch_worksheet(worksheet_name)
+        return self._worksheets[worksheet_name]
 
     def load_dataframe(self, worksheet_name: str, columns: list[str]) -> pd.DataFrame:
         worksheet = self._open_worksheet(worksheet_name)

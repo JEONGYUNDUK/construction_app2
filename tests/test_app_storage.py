@@ -154,6 +154,27 @@ class AppStorageTests(unittest.TestCase):
         self.assertIsInstance(worksheet, FakeWorksheet)
         self.assertEqual(attempts["count"], 3)
 
+    def test_repository_reuses_cached_worksheet(self) -> None:
+        repository = GoogleSheetsRepository(
+            spreadsheet_id="sheet-123",
+            service_account_info={"client_email": "svc@example.com"},
+        )
+        calls = {"count": 0}
+        worksheet = object()
+
+        def fake_open(name: str):
+            calls["count"] += 1
+            return worksheet
+
+        repository._fetch_worksheet = fake_open  # type: ignore[method-assign]
+
+        first = repository._open_worksheet("targets")
+        second = repository._open_worksheet("targets")
+
+        self.assertIs(first, worksheet)
+        self.assertIs(second, worksheet)
+        self.assertEqual(calls["count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
