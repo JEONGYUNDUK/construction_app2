@@ -129,6 +129,7 @@ class GoogleSheetsRepository:
 
     def _get_spreadsheet(self):
         import gspread
+        from gspread.exceptions import APIError
         from google.oauth2.service_account import Credentials
 
         if self._spreadsheet is not None:
@@ -140,9 +141,9 @@ class GoogleSheetsRepository:
         try:
             self._spreadsheet = self._retry_google_api_call(
                 lambda: client.open_by_key(self.spreadsheet_id),
-                gspread.APIError,
+                APIError,
             )
-        except gspread.APIError as exc:
+        except APIError as exc:
             raise ValueError(
                 format_google_sheets_api_error(
                     exc,
