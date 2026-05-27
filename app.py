@@ -5,6 +5,11 @@ from uuid import uuid4
 
 import pandas as pd
 import streamlit as st
+from app_storage import (
+    GoogleSheetsRepository,
+    build_google_service_account_info,
+    extract_spreadsheet_id,
+)
 
 try:
     from app_logic import (
@@ -232,6 +237,8 @@ EXCEL_FILE = Path("매장리스트.xlsx")
 CSV_FILE = Path("매장리스트.csv")
 TARGET_FILE = Path("construction_targets.csv")
 DATA_FILE = Path("construction_records.csv")
+TARGET_WORKSHEET = "targets"
+RECORD_WORKSHEET = "records"
 
 REQUIRED_COLUMNS = ["마케팅팀", "대리점명", "매장코드", "매장명", "주소"]
 TARGET_COLUMNS = ["대상ID", "등록일시", "마케팅팀", "대리점명", "매장명", "매장코드", "주소"]
@@ -415,10 +422,7 @@ def load_store_data() -> pd.DataFrame:
 
 
 def load_target_stores() -> pd.DataFrame:
-    if not TARGET_FILE.exists():
-        return pd.DataFrame(columns=TARGET_COLUMNS)
-
-    df = pd.read_csv(TARGET_FILE, dtype=str).fillna("")
+    df = load_storage_frame(TARGET_WORKSHEET, TARGET_COLUMNS, TARGET_FILE)
 
     for col in TARGET_COLUMNS:
         if col not in df.columns:
@@ -435,14 +439,11 @@ def load_target_stores() -> pd.DataFrame:
 
 def save_target_stores(df: pd.DataFrame) -> None:
     cleaned = remove_registered_target_duplicates(df[TARGET_COLUMNS])
-    cleaned.to_csv(TARGET_FILE, index=False, encoding="utf-8-sig")
+    get_storage_repository().save_dataframe(TARGET_WORKSHEET, cleaned, TARGET_COLUMNS)
 
 
 def load_records() -> pd.DataFrame:
-    if not DATA_FILE.exists():
-        return pd.DataFrame(columns=RECORD_COLUMNS)
-
-    df = pd.read_csv(DATA_FILE, dtype=str).fillna("")
+    df = load_storage_frame(RECORD_WORKSHEET, RECORD_COLUMNS, DATA_FILE)
 
     for col in RECORD_COLUMNS:
         if col not in df.columns:
@@ -452,7 +453,53 @@ def load_records() -> pd.DataFrame:
 
 
 def save_records(df: pd.DataFrame) -> None:
-    df[RECORD_COLUMNS].to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
+    get_storage_repository().save_dataframe(RECORD_WORKSHEET, df[RECORD_COLUMNS], RECORD_COLUMNS)
+
+
+def load_local_storage_backup(path: Path, columns: list[str]) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame(columns=columns)
+
+    frame = pd.read_csv(path, dtype=str).fillna("")
+    for column in columns:
+        if column not in frame.columns:
+            frame[column] = ""
+    return frame[columns]
+
+
+@st.cache_resource(show_spinner=False)
+def get_storage_repository() -> GoogleSheetsRepository:
+    try:
+        service_account_info = build_google_service_account_info(dict(st.secrets["gcp_service_account"]))
+        sheet_settings = dict(st.secrets["google_sheets"])
+        spreadsheet_id = extract_spreadsheet_id(sheet_settings)
+    except KeyError:
+        st.error(
+            "Google Sheets 설정이 없습니다. Streamlit Secrets에 `gcp_service_account`와 "
+            "`google_sheets.spreadsheet_id`를 추가해 주세요."
+        )
+        st.stop()
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
+
+    return GoogleSheetsRepository(
+        spreadsheet_id=spreadsheet_id,
+        service_account_info=service_account_info,
+    )
+
+
+def load_storage_frame(worksheet_name: str, columns: list[str], backup_path: Path) -> pd.DataFrame:
+    repository = get_storage_repository()
+    frame = repository.load_dataframe(worksheet_name, columns)
+
+    if frame.empty:
+        backup_frame = load_local_storage_backup(backup_path, columns)
+        if not backup_frame.empty:
+            repository.save_dataframe(worksheet_name, backup_frame, columns)
+            return backup_frame
+
+    return frame
 
 
 def validate_period_dates(start_date: date, end_date: date) -> tuple[bool, str]:
